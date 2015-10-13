@@ -27,7 +27,10 @@ object Util {
     Process.repeatEval(Task.delay(bool.get())).takeWhile(identity).void
 
   def pause(bool: AtomicBoolean, seconds: Int): Process[Task, Unit] =
-    (continueWhileTrue(bool) >> time.awakeEvery(1.seconds).once.void).take(seconds)
+    (continueWhileTrue(bool) >> {
+      log("Pausing one second")
+      time.awakeEvery(1.seconds).once.void
+    }).take(seconds)
 
   def feedIncrementally[A](running: AtomicBoolean, op: => Option[A]): Process[Task, A] =
     Process.unfoldEval(())(_ => Task.delay(
@@ -35,7 +38,7 @@ object Util {
     ))
 
   def repeatWhileRunning[A](running: AtomicBoolean, p: => Process[Task, A]): Process[Task, A] =
-    p ++ (if (running.get()) p else Process.halt)
+    p ++ (if (running.get()) repeatWhileRunning(running, p) else Process.halt)
 }
 
 object CertificationService {
@@ -45,6 +48,7 @@ object CertificationService {
   val docCounter: AtomicInteger = new AtomicInteger(0)
 
   def nextDocument(): Option[UncertifiedDocument] = {
+    log("Looking for next document")
     (nextDocumentCounter.incrementAndGet() % 4 != 0).option{
       log("Returning uncertified document #" + docCounter.incrementAndGet())
       UncertifiedDocument
